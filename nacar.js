@@ -140,8 +140,9 @@
     lenis = new Lenis({ duration: 1.15, easing: t => Math.min(1, 1.001 - Math.pow(2, -10 * t)), smoothWheel: true });
     function raf(time) { lenis.raf(time); requestAnimationFrame(raf); }
     requestAnimationFrame(raf);
-    // anchor smoothing
+    // anchor smoothing (skip menu links — handled separately to avoid firing while lenis is paused)
     document.querySelectorAll('a[href^="#"]').forEach(a => {
+      if (a.closest('#menu')) return;
       a.addEventListener('click', (e) => {
         const id = a.getAttribute('href');
         if (id.length > 1 && document.querySelector(id)) {
@@ -283,7 +284,28 @@
     if (lenis) { open ? lenis.stop() : lenis.start(); }
   }
   if (burger) burger.addEventListener('click', () => setMenu(!menuOpen));
-  if (menu) menu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => setMenu(false)));
+  // Menu anchor links: close menu FIRST (→ lenis.start()), then scroll after a frame.
+  // This fixes the bug where lenis.scrollTo() was called while lenis was still paused.
+  if (menu) {
+    menu.querySelectorAll('a').forEach(a => {
+      a.addEventListener('click', e => {
+        const href = a.getAttribute('href');
+        if (href && href.startsWith('#') && href.length > 1) {
+          const target = document.querySelector(href);
+          if (target) {
+            e.preventDefault();
+            setMenu(false); // lenis.start() is called here
+            setTimeout(() => {
+              if (lenis) lenis.scrollTo(href, { offset: -40, duration: 1.4 });
+              else target.scrollIntoView({ behavior: 'smooth' });
+            }, 80);
+            return;
+          }
+        }
+        setMenu(false);
+      });
+    });
+  }
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && menuOpen) setMenu(false); });
 
   /* ---------- Form ---------- */
